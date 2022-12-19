@@ -80,8 +80,12 @@ contract ShamomV1 is Initializable, AccessControlUpgradeable {
         uint256 amount
     ) public payable virtual onlyRole(MEMBER_ROLE) {
         require(
-            amount < remainingAllowance(),
+            amount > remainingAllowance(),
             "Amount greater than remaining allowance"
+        );
+        require(
+            amount > getCookieBalance(),
+            "Not enough cookies in the jar"
         );
 
         claims[msg.sender].push(Claim(block.timestamp, amount));
