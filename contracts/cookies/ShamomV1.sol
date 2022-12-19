@@ -4,14 +4,12 @@ pragma solidity ^0.8.7;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 import "../interfaces/IBAAL.sol";
 
-// Made for use with Baal(Molochv3)
-// Example use of Manager shamans
-// Any account can claim some amount of shares or loot per period
-// this shaman must be set as a manager role in the dao
-contract ShamomV1 is Initializable, AccessControlUpgradeable {
+/// @notice Shamom administers the cookie jar
+contract ShamomV1 is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
     struct Claim {
         uint256 timestamp;
         uint256 amount;
@@ -27,17 +25,21 @@ contract ShamomV1 is Initializable, AccessControlUpgradeable {
     IBAAL public baal;
     IERC20 public token;
 
+    /// @notice Last cookie claims made by members
+    /// @dev This is only a cache and claims older than period are deleted
     mapping(address => Claim[]) public claims;
-    uint256 public cookieTokenValue;
-    uint256 public period; // length of period in seconds
-    uint256 public maxCookiesPerPeriod; // maximum amount of cookies claimable per address per period
+    /// @notice Cookie value in token units
+    uint256 public cookieTokenValue; 
+    /// @notice Length of period in seconds
+    uint256 public period; 
+    /// @notice Maximum amount of cookies claimable per member per period
+    uint256 public maxCookiesPerPeriod; 
 
     /*******************
      * EVENTS
      ******************/
 
-    event SetMember(address account);
-    event CookiesClaimed(address account, uint256 timestamp, uint256 amount);
+    event CookiesClaimed(address account, uint256 timestamp, uint256 amount, string comment);
 
     /*******************
      * DEPLOY
@@ -58,6 +60,7 @@ contract ShamomV1 is Initializable, AccessControlUpgradeable {
         uint256 _period
     ) public initializer {
         __AccessControl_init();
+        __UUPSUpgradeable_init();
 
         baal = IBAAL(_moloch);
         token = IERC20(_token);
@@ -66,29 +69,31 @@ contract ShamomV1 is Initializable, AccessControlUpgradeable {
         maxCookiesPerPeriod = _maxCookiesPerPeriod;
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(MEMBER_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, msg.sender);
     }
 
+    /// @notice Grant membership to the specified address
+    /// @param applicant New member address
     function grantMembership(
         address applicant
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _grantRole(MEMBER_ROLE, applicant);
     }
 
-    // can be called by any account to claim per period tokens
+    /// @notice Can be called by members to claim up to maxCookiesPerPeriod cookies in any period
+    /// @param amount Amount of cookies claimed
+    /// @param comment Reason for the claim
     function claimCookies(
-        uint256 amount
+        uint256 amount, 
+        string calldata comment
     ) public payable virtual onlyRole(MEMBER_ROLE) {
         require(
             amount > remainingAllowance(),
             "Amount greater than remaining allowance"
         );
-        require(
-            amount > getCookieBalance(),
-            "Not enough cookies in the jar"
-        );
-
-        claims[msg.sender].push(Claim(block.timestamp, amount));
+        require(amount > getCookieBalance(), "Not enough cookies in the jar");
+        require(bytes(comment).length > 0, "No comment provided");
 
         token.transferFrom(
             address(this),
@@ -96,13 +101,18 @@ contract ShamomV1 is Initializable, AccessControlUpgradeable {
             amount * cookieTokenValue
         );
 
-        emit CookiesClaimed(msg.sender, block.timestamp, amount);
+        claims[msg.sender].push(Claim(block.timestamp, amount));
+
+        emit CookiesClaimed(msg.sender, block.timestamp, amount, comment);
     }
 
+    /// @notice Deposit tokens in the jar to fund cookies
+    /// @param amount Amount of token to deposit
     function deposit(uint amount) public payable {
         token.transferFrom(msg.sender, address(this), amount);
     }
 
+    /// @notice Gets the total token balance of the contract
     function getTokenBalance()
         public
         view
@@ -112,6 +122,7 @@ contract ShamomV1 is Initializable, AccessControlUpgradeable {
         return token.balanceOf(address(this));
     }
 
+    /// @notice Gets the total balance of the contract expressed in cookies
     function getCookieBalance()
         public
         view
@@ -121,7 +132,13 @@ contract ShamomV1 is Initializable, AccessControlUpgradeable {
         return getTokenBalance() / cookieTokenValue;
     }
 
-    function totalCookiesThisPeriod() public virtual returns (uint256 total) {
+    /// @notice Gets the total number of cookies claimed by sender in the current period
+    function totalCookiesThisPeriod()
+        public
+        virtual
+        onlyRole(MEMBER_ROLE)
+        returns (uint256 total)
+    {
         Claim[] storage claimed = claims[msg.sender];
         for (uint i = 0; i < claimed.length; i++) {
             Claim memory claim = claimed[i];
@@ -137,7 +154,13 @@ contract ShamomV1 is Initializable, AccessControlUpgradeable {
         }
     }
 
-    function remainingAllowance() public virtual returns (uint256) {
+    /// @notice Gets the total number of cookies remaining to be claimed by sender in the current period
+    function remainingAllowance()
+        public
+        virtual
+        onlyRole(MEMBER_ROLE)
+        returns (uint256)
+    {
         uint256 totalClaimed = totalCookiesThisPeriod();
 
         return maxCookiesPerPeriod - totalClaimed;
@@ -154,7 +177,21 @@ contract ShamomV1 is Initializable, AccessControlUpgradeable {
         _version += 1;
     }
 
+
     /*******************
      * INTERNAL
      ******************/
+
+    /// @notice upgrade authorization logic
+    /// @dev adds onlyRole(UPGRADER_ROLE) requirement
+    function _authorizeUpgrade(
+        address /*newImplementation*/
+    )
+        internal
+        view
+        override
+        onlyRole(UPGRADER_ROLE) // solhint-disable-next-line no-empty-blocks
+    {
+        //empty block
+    }
 }

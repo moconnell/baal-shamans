@@ -34,7 +34,7 @@ export interface ShamomV1Interface extends utils.Interface {
     "MEMBER_ROLE()": FunctionFragment;
     "UPGRADER_ROLE()": FunctionFragment;
     "baal()": FunctionFragment;
-    "claimCookies(uint256)": FunctionFragment;
+    "claimCookies(uint256,string)": FunctionFragment;
     "claims(address,uint256)": FunctionFragment;
     "cookieTokenValue()": FunctionFragment;
     "deposit(uint256)": FunctionFragment;
@@ -47,6 +47,7 @@ export interface ShamomV1Interface extends utils.Interface {
     "initialize(address,address,uint256,uint256,uint256)": FunctionFragment;
     "maxCookiesPerPeriod()": FunctionFragment;
     "period()": FunctionFragment;
+    "proxiableUUID()": FunctionFragment;
     "remainingAllowance()": FunctionFragment;
     "renounceRole(bytes32,address)": FunctionFragment;
     "revokeRole(bytes32,address)": FunctionFragment;
@@ -54,6 +55,8 @@ export interface ShamomV1Interface extends utils.Interface {
     "token()": FunctionFragment;
     "totalCookiesThisPeriod()": FunctionFragment;
     "updateVersion()": FunctionFragment;
+    "upgradeTo(address)": FunctionFragment;
+    "upgradeToAndCall(address,bytes)": FunctionFragment;
     "version()": FunctionFragment;
   };
 
@@ -76,6 +79,7 @@ export interface ShamomV1Interface extends utils.Interface {
       | "initialize"
       | "maxCookiesPerPeriod"
       | "period"
+      | "proxiableUUID"
       | "remainingAllowance"
       | "renounceRole"
       | "revokeRole"
@@ -83,6 +87,8 @@ export interface ShamomV1Interface extends utils.Interface {
       | "token"
       | "totalCookiesThisPeriod"
       | "updateVersion"
+      | "upgradeTo"
+      | "upgradeToAndCall"
       | "version"
   ): FunctionFragment;
 
@@ -101,7 +107,7 @@ export interface ShamomV1Interface extends utils.Interface {
   encodeFunctionData(functionFragment: "baal", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "claimCookies",
-    values: [PromiseOrValue<BigNumberish>]
+    values: [PromiseOrValue<BigNumberish>, PromiseOrValue<string>]
   ): string;
   encodeFunctionData(
     functionFragment: "claims",
@@ -155,6 +161,10 @@ export interface ShamomV1Interface extends utils.Interface {
   ): string;
   encodeFunctionData(functionFragment: "period", values?: undefined): string;
   encodeFunctionData(
+    functionFragment: "proxiableUUID",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
     functionFragment: "remainingAllowance",
     values?: undefined
   ): string;
@@ -178,6 +188,14 @@ export interface ShamomV1Interface extends utils.Interface {
   encodeFunctionData(
     functionFragment: "updateVersion",
     values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "upgradeTo",
+    values: [PromiseOrValue<string>]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "upgradeToAndCall",
+    values: [PromiseOrValue<string>, PromiseOrValue<BytesLike>]
   ): string;
   encodeFunctionData(functionFragment: "version", values?: undefined): string;
 
@@ -229,6 +247,10 @@ export interface ShamomV1Interface extends utils.Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "period", data: BytesLike): Result;
   decodeFunctionResult(
+    functionFragment: "proxiableUUID",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "remainingAllowance",
     data: BytesLike
   ): Result;
@@ -250,32 +272,63 @@ export interface ShamomV1Interface extends utils.Interface {
     functionFragment: "updateVersion",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "upgradeTo", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "upgradeToAndCall",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "version", data: BytesLike): Result;
 
   events: {
-    "CookiesClaimed(address,uint256,uint256)": EventFragment;
+    "AdminChanged(address,address)": EventFragment;
+    "BeaconUpgraded(address)": EventFragment;
+    "CookiesClaimed(address,uint256,uint256,string)": EventFragment;
     "Initialized(uint8)": EventFragment;
     "RoleAdminChanged(bytes32,bytes32,bytes32)": EventFragment;
     "RoleGranted(bytes32,address,address)": EventFragment;
     "RoleRevoked(bytes32,address,address)": EventFragment;
-    "SetMember(address)": EventFragment;
+    "Upgraded(address)": EventFragment;
   };
 
+  getEvent(nameOrSignatureOrTopic: "AdminChanged"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "BeaconUpgraded"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "CookiesClaimed"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Initialized"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "RoleAdminChanged"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "RoleGranted"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "RoleRevoked"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "SetMember"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "Upgraded"): EventFragment;
 }
+
+export interface AdminChangedEventObject {
+  previousAdmin: string;
+  newAdmin: string;
+}
+export type AdminChangedEvent = TypedEvent<
+  [string, string],
+  AdminChangedEventObject
+>;
+
+export type AdminChangedEventFilter = TypedEventFilter<AdminChangedEvent>;
+
+export interface BeaconUpgradedEventObject {
+  beacon: string;
+}
+export type BeaconUpgradedEvent = TypedEvent<
+  [string],
+  BeaconUpgradedEventObject
+>;
+
+export type BeaconUpgradedEventFilter = TypedEventFilter<BeaconUpgradedEvent>;
 
 export interface CookiesClaimedEventObject {
   account: string;
   timestamp: BigNumber;
   amount: BigNumber;
+  comment: string;
 }
 export type CookiesClaimedEvent = TypedEvent<
-  [string, BigNumber, BigNumber],
+  [string, BigNumber, BigNumber, string],
   CookiesClaimedEventObject
 >;
 
@@ -325,12 +378,12 @@ export type RoleRevokedEvent = TypedEvent<
 
 export type RoleRevokedEventFilter = TypedEventFilter<RoleRevokedEvent>;
 
-export interface SetMemberEventObject {
-  account: string;
+export interface UpgradedEventObject {
+  implementation: string;
 }
-export type SetMemberEvent = TypedEvent<[string], SetMemberEventObject>;
+export type UpgradedEvent = TypedEvent<[string], UpgradedEventObject>;
 
-export type SetMemberEventFilter = TypedEventFilter<SetMemberEvent>;
+export type UpgradedEventFilter = TypedEventFilter<UpgradedEvent>;
 
 export interface ShamomV1 extends BaseContract {
   connect(signerOrProvider: Signer | Provider | string): this;
@@ -369,6 +422,7 @@ export interface ShamomV1 extends BaseContract {
 
     claimCookies(
       amount: PromiseOrValue<BigNumberish>,
+      comment: PromiseOrValue<string>,
       overrides?: PayableOverrides & { from?: PromiseOrValue<string> }
     ): Promise<ContractTransaction>;
 
@@ -426,6 +480,8 @@ export interface ShamomV1 extends BaseContract {
 
     period(overrides?: CallOverrides): Promise<[BigNumber]>;
 
+    proxiableUUID(overrides?: CallOverrides): Promise<[string]>;
+
     remainingAllowance(
       overrides?: Overrides & { from?: PromiseOrValue<string> }
     ): Promise<ContractTransaction>;
@@ -457,6 +513,17 @@ export interface ShamomV1 extends BaseContract {
       overrides?: Overrides & { from?: PromiseOrValue<string> }
     ): Promise<ContractTransaction>;
 
+    upgradeTo(
+      newImplementation: PromiseOrValue<string>,
+      overrides?: Overrides & { from?: PromiseOrValue<string> }
+    ): Promise<ContractTransaction>;
+
+    upgradeToAndCall(
+      newImplementation: PromiseOrValue<string>,
+      data: PromiseOrValue<BytesLike>,
+      overrides?: PayableOverrides & { from?: PromiseOrValue<string> }
+    ): Promise<ContractTransaction>;
+
     version(overrides?: CallOverrides): Promise<[BigNumber]>;
   };
 
@@ -470,6 +537,7 @@ export interface ShamomV1 extends BaseContract {
 
   claimCookies(
     amount: PromiseOrValue<BigNumberish>,
+    comment: PromiseOrValue<string>,
     overrides?: PayableOverrides & { from?: PromiseOrValue<string> }
   ): Promise<ContractTransaction>;
 
@@ -527,6 +595,8 @@ export interface ShamomV1 extends BaseContract {
 
   period(overrides?: CallOverrides): Promise<BigNumber>;
 
+  proxiableUUID(overrides?: CallOverrides): Promise<string>;
+
   remainingAllowance(
     overrides?: Overrides & { from?: PromiseOrValue<string> }
   ): Promise<ContractTransaction>;
@@ -558,6 +628,17 @@ export interface ShamomV1 extends BaseContract {
     overrides?: Overrides & { from?: PromiseOrValue<string> }
   ): Promise<ContractTransaction>;
 
+  upgradeTo(
+    newImplementation: PromiseOrValue<string>,
+    overrides?: Overrides & { from?: PromiseOrValue<string> }
+  ): Promise<ContractTransaction>;
+
+  upgradeToAndCall(
+    newImplementation: PromiseOrValue<string>,
+    data: PromiseOrValue<BytesLike>,
+    overrides?: PayableOverrides & { from?: PromiseOrValue<string> }
+  ): Promise<ContractTransaction>;
+
   version(overrides?: CallOverrides): Promise<BigNumber>;
 
   callStatic: {
@@ -571,6 +652,7 @@ export interface ShamomV1 extends BaseContract {
 
     claimCookies(
       amount: PromiseOrValue<BigNumberish>,
+      comment: PromiseOrValue<string>,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -628,6 +710,8 @@ export interface ShamomV1 extends BaseContract {
 
     period(overrides?: CallOverrides): Promise<BigNumber>;
 
+    proxiableUUID(overrides?: CallOverrides): Promise<string>;
+
     remainingAllowance(overrides?: CallOverrides): Promise<BigNumber>;
 
     renounceRole(
@@ -653,19 +737,48 @@ export interface ShamomV1 extends BaseContract {
 
     updateVersion(overrides?: CallOverrides): Promise<void>;
 
+    upgradeTo(
+      newImplementation: PromiseOrValue<string>,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    upgradeToAndCall(
+      newImplementation: PromiseOrValue<string>,
+      data: PromiseOrValue<BytesLike>,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
     version(overrides?: CallOverrides): Promise<BigNumber>;
   };
 
   filters: {
-    "CookiesClaimed(address,uint256,uint256)"(
+    "AdminChanged(address,address)"(
+      previousAdmin?: null,
+      newAdmin?: null
+    ): AdminChangedEventFilter;
+    AdminChanged(
+      previousAdmin?: null,
+      newAdmin?: null
+    ): AdminChangedEventFilter;
+
+    "BeaconUpgraded(address)"(
+      beacon?: PromiseOrValue<string> | null
+    ): BeaconUpgradedEventFilter;
+    BeaconUpgraded(
+      beacon?: PromiseOrValue<string> | null
+    ): BeaconUpgradedEventFilter;
+
+    "CookiesClaimed(address,uint256,uint256,string)"(
       account?: null,
       timestamp?: null,
-      amount?: null
+      amount?: null,
+      comment?: null
     ): CookiesClaimedEventFilter;
     CookiesClaimed(
       account?: null,
       timestamp?: null,
-      amount?: null
+      amount?: null,
+      comment?: null
     ): CookiesClaimedEventFilter;
 
     "Initialized(uint8)"(version?: null): InitializedEventFilter;
@@ -704,8 +817,12 @@ export interface ShamomV1 extends BaseContract {
       sender?: PromiseOrValue<string> | null
     ): RoleRevokedEventFilter;
 
-    "SetMember(address)"(account?: null): SetMemberEventFilter;
-    SetMember(account?: null): SetMemberEventFilter;
+    "Upgraded(address)"(
+      implementation?: PromiseOrValue<string> | null
+    ): UpgradedEventFilter;
+    Upgraded(
+      implementation?: PromiseOrValue<string> | null
+    ): UpgradedEventFilter;
   };
 
   estimateGas: {
@@ -719,6 +836,7 @@ export interface ShamomV1 extends BaseContract {
 
     claimCookies(
       amount: PromiseOrValue<BigNumberish>,
+      comment: PromiseOrValue<string>,
       overrides?: PayableOverrides & { from?: PromiseOrValue<string> }
     ): Promise<BigNumber>;
 
@@ -774,6 +892,8 @@ export interface ShamomV1 extends BaseContract {
 
     period(overrides?: CallOverrides): Promise<BigNumber>;
 
+    proxiableUUID(overrides?: CallOverrides): Promise<BigNumber>;
+
     remainingAllowance(
       overrides?: Overrides & { from?: PromiseOrValue<string> }
     ): Promise<BigNumber>;
@@ -805,6 +925,17 @@ export interface ShamomV1 extends BaseContract {
       overrides?: Overrides & { from?: PromiseOrValue<string> }
     ): Promise<BigNumber>;
 
+    upgradeTo(
+      newImplementation: PromiseOrValue<string>,
+      overrides?: Overrides & { from?: PromiseOrValue<string> }
+    ): Promise<BigNumber>;
+
+    upgradeToAndCall(
+      newImplementation: PromiseOrValue<string>,
+      data: PromiseOrValue<BytesLike>,
+      overrides?: PayableOverrides & { from?: PromiseOrValue<string> }
+    ): Promise<BigNumber>;
+
     version(overrides?: CallOverrides): Promise<BigNumber>;
   };
 
@@ -821,6 +952,7 @@ export interface ShamomV1 extends BaseContract {
 
     claimCookies(
       amount: PromiseOrValue<BigNumberish>,
+      comment: PromiseOrValue<string>,
       overrides?: PayableOverrides & { from?: PromiseOrValue<string> }
     ): Promise<PopulatedTransaction>;
 
@@ -878,6 +1010,8 @@ export interface ShamomV1 extends BaseContract {
 
     period(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
+    proxiableUUID(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+
     remainingAllowance(
       overrides?: Overrides & { from?: PromiseOrValue<string> }
     ): Promise<PopulatedTransaction>;
@@ -907,6 +1041,17 @@ export interface ShamomV1 extends BaseContract {
 
     updateVersion(
       overrides?: Overrides & { from?: PromiseOrValue<string> }
+    ): Promise<PopulatedTransaction>;
+
+    upgradeTo(
+      newImplementation: PromiseOrValue<string>,
+      overrides?: Overrides & { from?: PromiseOrValue<string> }
+    ): Promise<PopulatedTransaction>;
+
+    upgradeToAndCall(
+      newImplementation: PromiseOrValue<string>,
+      data: PromiseOrValue<BytesLike>,
+      overrides?: PayableOverrides & { from?: PromiseOrValue<string> }
     ): Promise<PopulatedTransaction>;
 
     version(overrides?: CallOverrides): Promise<PopulatedTransaction>;
