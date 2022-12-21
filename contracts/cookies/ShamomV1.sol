@@ -89,10 +89,10 @@ contract ShamomV1 is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
         string calldata comment
     ) public payable virtual onlyRole(MEMBER_ROLE) {
         require(
-            amount > remainingAllowance(),
+            amount <= remainingAllowance(),
             "Amount greater than remaining allowance"
         );
-        require(amount > getCookieBalance(), "Not enough cookies in the jar");
+        require(amount <= getCookieBalance(), "Not enough cookies in the jar");
         require(bytes(comment).length > 0, "No comment provided");
 
         token.transferFrom(
